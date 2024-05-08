@@ -1,0 +1,19 @@
+{
+  "name": "inkeep-rest-api-exmaple",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node dist/index.js",
+    "build": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "eventsource-parser": "^1.1.2",
+    "ts-node": "^10.9.2"
+  }
+}
