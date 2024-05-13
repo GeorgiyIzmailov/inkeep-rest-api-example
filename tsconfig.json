@@ -1,8 +1,11 @@
 {
     "compilerOptions": {
-        "target": "ES5",
+        "target": "ES2015",
         "esModuleInterop": true,
-        "outDir": "dist"
+        "outDir": "dist",
+        "module": "commonjs",
+        "sourceMap": true,
+        "noImplicitAny": true,
     },
     "include": [
         "**/*.ts"

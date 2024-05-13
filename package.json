@@ -15,5 +15,8 @@
     "dotenv": "^16.4.5",
     "eventsource-parser": "^1.1.2",
     "ts-node": "^10.9.2"
+  },
+  "devDependencies": {
+    "@inkeep/ai-api": "^0.7.2"
   }
 }

@@ -1,8 +1,59 @@
+import type { RecordsCited$, MessageChunk$ } from "@inkeep/ai-api/models/components";
 import { createParser, type ParsedEvent, type ReconnectInterval } from 'eventsource-parser';
 
 require('dotenv').config();
 
-const callInkeepAPI = async (question: string): Promise<AsyncIterable<any>> => {
+function decodeUTF8(uint8Array: Uint8Array) {
+  const decoder = new TextDecoder('utf-8');
+  return decoder.decode(uint8Array);
+}
+
+function onParse(event: ParsedEvent | ReconnectInterval) {
+  let chatSessionId: string | undefined | null = undefined;
+
+  if ('data' in event) {
+    if (event.event == "message_chunk") {
+      const chatResultStreamMessageChunk: MessageChunk$.Inbound = JSON.parse(event.data);
+      console.log("Partial message: " + chatResultStreamMessageChunk.content_chunk);
+      chatSessionId = chatResultStreamMessageChunk.chat_session_id;
+    }
+    if (event.event == "records_cited") {
+      const chatResultStreamRecordsCited: RecordsCited$.Inbound = JSON.parse(event.data);
+      console.log("Citations: ", JSON.stringify(chatResultStreamRecordsCited.citations, null, 2));
+    }
+  }
+}
+
+const parser = createParser(onParse)
+
+async function processSSEStream(response: Response) {
+  const reader = response.body.getReader();
+
+  if (!reader) {
+    throw new Error("No reader found");
+  }
+
+  return {
+    async next() {
+      const { done, value } = await reader.read();
+      const textChunk = decodeUTF8(value);
+      return { done, value: done ? undefined : textChunk };
+    },
+    return() {
+      reader.cancel();
+      return Promise.resolve({ done: true });
+    },
+    throw(error: Error) {
+      reader.cancel();
+      return Promise.reject(error);
+    },
+    [Symbol.asyncIterator]() {
+      return this;
+    }
+  };
+}
+
+async function callInkeepAPI(question: string) {
   const body = {
     chat_session: {
       messages: [
@@ -30,47 +81,15 @@ const callInkeepAPI = async (question: string): Promise<AsyncIterable<any>> => {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
 
-
-  const reader = response.body?.getReader();
-  if (!reader) {
-    throw new Error("No reader found");
-  }
-
-  const textDecoder = new TextDecoder();
-  let eventQueue: any[] = [];
-
-  const parser = createParser((event: ParsedEvent | ReconnectInterval) => {
-    console.log("Parser event received:", event); // Log all events received by the parser
-    if ('data' in event) {
-      eventQueue.push(event.data);
-    }
-  });
-
-  return (async function* () {
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const textChunk = textDecoder.decode(value);
-        console.log("Received chunk:", textChunk); // Log each chunk received
-        parser.feed(textChunk);
-        while (eventQueue.length > 0) {
-          const event = eventQueue.shift();
-          if (event) yield event;
-        }
-      }
-    } catch (err) {
-      console.error('Error reading SSE stream:', err);
-    }
-  })();
-};
+  return processSSEStream(response);
+}
 
 async function main() {
   console.log("calling inkeep api");
   try {
-    const eventStream = await callInkeepAPI('how do i get started');
-    for await (const event of eventStream) {
-      console.log(event);
+    const stream = await callInkeepAPI('How do I get started?');
+    for await (const chunk of stream) {
+      parser.feed(chunk);
     }
   } catch (error) {
     console.error("Error in main:", error);
